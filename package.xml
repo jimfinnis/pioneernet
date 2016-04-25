@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package>
+  <name>pioneernet</name>
+  <version>0.0.0</version>
+  <description>The pioneernet package</description>
+
+  <maintainer email="jim.finnis@gmail.com">Jim Finnis</maintainer>
+  <license>MIT</license>
+  <url type="website">https://github.com/jimfinnis/pioneernet</url>
+
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <run_depend>sensor_msgs</run_depend>
+
+
+</package>
