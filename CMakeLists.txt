@@ -1,7 +1,16 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(pioneernet)
 
-find_package(catkin REQUIRED COMPONENTS roscpp rospy sensor_msgs std_msgs)
+find_package(catkin REQUIRED COMPONENTS roscpp rospy sensor_msgs
+    std_msgs)
+
+catkin_package(
+#  INCLUDE_DIRS include
+#  LIBRARIES pioneernet
+#  CATKIN_DEPENDS other_catkin_pkg
+#  DEPENDS system_lib
+)
+
 
 include_directories($ENV{HOME}/phd/code/mnist)
 
