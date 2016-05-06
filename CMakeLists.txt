@@ -23,6 +23,18 @@ add_executable(pioneernet_node
 
 add_dependencies(pioneernet_node 
     ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 target_link_libraries(pioneernet_node 
+  ${catkin_LIBRARIES}
+)
+
+add_executable(bridge_node
+    src/bridge_node.cpp
+)
+
+add_dependencies(bridge_node 
+    ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+target_link_libraries(bridge_node 
   ${catkin_LIBRARIES}
 )

@@ -2,7 +2,15 @@
 <package>
   <name>pioneernet</name>
   <version>0.0.0</version>
-  <description>The pioneernet package</description>
+  <description>The pioneernet package. Contains nodes to 
+    (1) control the Pioneer with a UESMANN network, by 
+    reading/writing the pioneer topics (which can come from
+    the robot or from the Gazebo sim;
+    (2) connect to the Pioneer by UDP, forming the local side
+    of a ROS/ARIA bridge - UDP packets are read and converted
+    to ROS topic publications, and ROS motor control topics are
+    read and resent to the Pioneer over UDP.
+  </description>
 
   <maintainer email="jim.finnis@gmail.com">Jim Finnis</maintainer>
   <license>MIT</license>
