@@ -12,7 +12,10 @@ catkin_package(
 )
 
 
-include_directories($ENV{HOME}/phd/code/mnist)
+include_directories(
+    $ENV{HOME}/phd/code/mnist
+    $ENV{HOME}/phd/code/pioneernet
+)
 
 ## Declare a C++ executable
 add_executable(pioneernet_node 
