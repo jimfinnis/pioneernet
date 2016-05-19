@@ -21,7 +21,9 @@ include_directories(
 add_executable(pioneernet_node 
     src/pioneernet_node.cpp
     $ENV{HOME}/phd/code/mnist/backprop.cpp
+    $ENV{HOME}/phd/code/mnist/plainbp.cpp
     $ENV{HOME}/phd/code/mnist/backpropNoBiasHormone.cpp
+    $ENV{HOME}/phd/code/mnist/loadsave.cpp
 )
 
 add_dependencies(pioneernet_node 
