@@ -80,7 +80,12 @@ void motorCallback(const std_msgs::Float64::ConstPtr& msg, int i){
     // it will be sent at regular intervals to ensure the robot
     // connection is safe - if the server notices no packets arriving
     // it will stop the motors.
-    client->req.motors[i]=msg->data;
+    
+    // Note that the Pioneer's ARIA library works in mm/sec, but we
+    // receive commands in m/sec (to make us compatible with how Gazebo
+    // works)
+    
+    client->req.motors[i]=msg->data*1000.0;
 }
 
 bool photoCallback(std_srvs::Empty::Request& req,
