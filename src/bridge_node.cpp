@@ -52,7 +52,7 @@ public:
         r.header.stamp = ros::Time::now();
         
         for(int i=0;i<NUM_SONARS;i++){
-            r.range = resp.sonars[i];
+            r.range = resp.sonars[i]*0.001f;
             sonarPubs[i].publish(r);
         }
         printf("Sonars OK\n");

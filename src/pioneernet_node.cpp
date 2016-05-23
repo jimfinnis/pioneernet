@@ -13,20 +13,10 @@
 
 #define NUM_SONARS 8
 
-double sonarRets[NUM_SONARS];
-
-inline double sonarReturn(double d,double mnd,double mxd){
-    if(d<0)return 0;
-    d-=mnd;
-    d/=(mxd-mnd);
-    d=1.0-d;
-    if(d<0)return 0;
-    if(d>1)return 1;
-    return d;
-}
+double sonarDists[NUM_SONARS];
 
 void sonarCallback(const sensor_msgs::Range::ConstPtr& msg,int i){
-    sonarRets[i] = sonarReturn(msg->range,100,400); // min/maxdist in mm!
+    sonarDists[i] = msg->range;
 }
 
 int main(int argc,char *argv[]){
@@ -40,7 +30,7 @@ int main(int argc,char *argv[]){
         sprintf(buf,"s%d",i);
         s[i] = n.subscribe<sensor_msgs::Range>(buf,1000,
                                  boost::bind(sonarCallback,_1,i));
-        sonarRets[i]=0;
+        sonarDists[i]=1000;
     }
     
     ros::Publisher leftmotor = n.advertise<std_msgs::Float64>("leftmotor",1000);
@@ -59,12 +49,8 @@ int main(int argc,char *argv[]){
         
         // update the robot
         net->setH(0);
-        net->setInputs(sonarRets);
+        net->setInputs(sonarDists);
         net->update();
-        
-        for(int i=0;i<NUM_SONARS;i++){
-            printf("%2.2f ",sonarRets[i]);
-        }printf("\n");
         
         double *outs = net->getOutputs();
         
