@@ -9,6 +9,7 @@
 
 #include "ros/ros.h"
 #include "backpropNoBiasHormone.h"
+#include "decimate.h"
 
 #include "lightsensor_gazebo/LightSensor.h"
 #include "sensor_msgs/Range.h"
@@ -19,12 +20,13 @@
 #define NUM_SONARS 8
 
 struct option opts[]={
-        {"net", required_argument, NULL, 'n'},
-        {"time", required_argument, NULL, 't'},
-        {"vars", required_argument, NULL, 'V'},
-        {"constfile", required_argument, NULL, 'c'},
-        {"hormone", required_argument, NULL, 'h'},
-        {NULL,0,NULL,0},
+    {"net", required_argument, NULL, 'n'},
+    {"time", required_argument, NULL, 't'},
+    {"vars", required_argument, NULL, 'V'},
+    {"constfile", required_argument, NULL, 'c'},
+    {"hormone", required_argument, NULL, 'h'},
+    {"log",required_argument,NULL,'l'},
+    {NULL,0,NULL,0},
 };
 
 
@@ -86,6 +88,7 @@ void lightCallback(const lightsensor_gazebo::LightSensor::ConstPtr& msg){
     }
 }
 
+
 int main(int argc,char *argv[]){
     ros::init(argc,argv,"pioneernet_node");
     ros::NodeHandle n;
@@ -96,6 +99,7 @@ int main(int argc,char *argv[]){
     bool manual=false;
     double inithormone=0;
     char *varString = NULL;
+    FILE *log=NULL;
     
     char constFile[1024];
     const char *cfe = getenv("WHEELYCONSTFILE");
@@ -114,9 +118,12 @@ int main(int argc,char *argv[]){
     
     BackpropNet *net = NULL;
     int optidx=0,c;
-    while(c=getopt_long(argc,argv,"n:t:V:c:h:",opts,&optidx)){
+    while(c=getopt_long(argc,argv,"l:n:t:V:c:h:",opts,&optidx)){
         if(c<0)break;
         switch(c){
+        case 'l':
+            log=fopen(optarg,"w");
+            break;
         case 't':
             maxtime = atof(optarg);
             break;
@@ -170,7 +177,21 @@ int main(int argc,char *argv[]){
     
     ros::Time lastTick = ros::Time::now();
     
+    if(log){
+        fprintf(log,"t,x,y,");
+        for(int i=0;i<NUM_SONARS;i++)
+            fprintf(log,"s%d,",i);
+        //logging assumption - 8 light pixels
+        for(int i=0;i<8;i++)
+            fprintf(log,"l%d,",i);
+        fprintf(log,"hormone,charge,powerin,l,r\n");
+    }
+            
+        
+    ros::Time startTick = ros::Time::now();
     while(ros::ok()){
+        GaussianDecimator *decimator=NULL;
+        
         ros::spinOnce();
         rate.sleep();
         
@@ -178,16 +199,29 @@ int main(int argc,char *argv[]){
         // to the robot
         net->setH(hormone);
         int inpidx=0;
-        if(NUM_SONARS+numPixels>numins){
-            fprintf(stderr,"Too many pixels? sonar=%d, pixels=%d, netins=%d\n",
-                    NUM_SONARS,numPixels,numins);
-            abort();
-        }
+        
         for(int i=0;i<NUM_SONARS;i++)
             inp[inpidx++]=sonarDists[i];
-        for(int i=0;i<numPixels;i++){
-            inp[inpidx++]=monoPix[i];
+        
+        // work out how many light inputs, and downsample to this,
+        // creating the gaussian when we do this. If there is no
+        // light input yet, set to zero.
+        int numLightIns = numins - NUM_SONARS;
+        if(numPixels){
+            if(!decimator){
+                // kernelsize,sigma,pixels in
+                decimator = new GaussianDecimator(41,4.0,numPixels);
+            }
+            if(numPixels!=decimator->getBufSize()){
+                ROS_FATAL("Number of input pixels has changed");
+                exit(1);
+            }
+            decimator->decimate(inp+inpidx,numLightIns,monoPix);
+        } else {
+            for(int i=0;i<numLightIns;i++)
+                inp[inpidx++]=0;
         }
+        
         net->setInputs(inp);
         net->update();
         double *outs = net->getOutputs();
@@ -216,7 +250,15 @@ int main(int argc,char *argv[]){
         else
             power.charge=1; // weird hormone, fix charge
         
-        printf("Hormone: %f, charge %f\n",hormone,power.charge);
-         
+        if(log){
+            double tnow = (lastTick-startTick).toSec();
+            fprintf(log,"%f,%f,%f,",tnow,0.0,0.0); // REPLACE
+            for(int i=0;i<16;i++) // assumption of 16 ins
+                fprintf(log,"%f,",inp[i]);
+            fprintf(log,"%f,%f,%f,%f,%f\n",hormone,power.charge,
+                    kPower*totalLight,outs[0],outs[1]);
+        }
     }
+    if(log)fclose(log);
+    return 0;
 }
