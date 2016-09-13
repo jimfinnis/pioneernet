@@ -216,7 +216,14 @@ int main(int argc,char *argv[]){
                 ROS_FATAL("Number of input pixels has changed");
                 exit(1);
             }
-            decimator->decimate(inp+inpidx,numLightIns,monoPix);
+            
+            // the bloody gazebo sensor I wrote has w/2 as "front",
+            // while in my network code zero is to the front. Dolt.
+            double tmp[256]; // big enough..
+            decimator->decimate(tmp,numLightIns,monoPix);
+            for(int i=0;i<numLightIns;i++){
+                inp[inpidx++] = tmp[(i+numLightIns/2)%numLightIns];
+            }
         } else {
             for(int i=0;i<numLightIns;i++)
                 inp[inpidx++]=0;
