@@ -234,8 +234,12 @@ int main(int argc,char *argv[]){
         double *outs = net->getOutputs();
         std_msgs::Float64 m;
         m.data = outs[0];
+        if(m.data<-1)m.data=-1;
+        if(m.data>1)m.data=1;
         leftmotor.publish(m);
         m.data = outs[1];
+        if(m.data<-1)m.data=-1;
+        if(m.data>1)m.data=1;
         rightmotor.publish(m);
         // update the power management
         
