@@ -19,6 +19,7 @@
 #include "tcp.h"
 #include "pioneerros.h"
 
+#include <diamondapparatus/diamondapparatus.h>
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -62,10 +63,17 @@ public:
         // for publications
         lightsensor_gazebo::LightSensor ls;
         for(int i=0;i<NUM_PIXELS;i++){
+            // these are 0-255
             lightsensor_gazebo::Pixel pix;
             pix.r = resp.pixels[i*3+0];
             pix.g = resp.pixels[i*3+1];
             pix.b = resp.pixels[i*3+2];
+            
+            printf("%d: %d %d %d\n",i,pix.r,pix.g,pix.b);
+            if(pix.r<40)pix.r=0;
+            if(pix.g<40)pix.g=0;
+            if(pix.b<40)pix.b=0;
+            
             ls.pixels.push_back(pix);
         }
         printf("Light sensors OK\n");
@@ -98,6 +106,8 @@ int main(int argc,char *argv[]){
     ros::init(argc,argv,"bridge_node");
     ros::NodeHandle node;
     
+    diamondapparatus::init();
+    
     // publishers
     
     for(int i=0;i<NUM_SONARS;i++){
@@ -126,11 +136,15 @@ int main(int argc,char *argv[]){
         return 1;
     }
     
+    // subscribe to diamond knob control stuff
+    diamondapparatus::subscribe("/glove/knobs");
+    
     try {
         // start the client and loop away!
         client = new BridgeClient(addr.c_str());
     } catch(TCPException e) {
         ROS_FATAL("TCP failure - %s",e.what());
+        exit(1);
     }
     // clear the outgoing motor packet, though..
     client->req.motors[0]=0;
@@ -145,5 +159,11 @@ int main(int argc,char *argv[]){
         client->request(); // send motor data
         client->req.command=0; // clear any command
         rate.sleep();
+        
+        diamondapparatus::Topic gloveTopic =
+              diamondapparatus::get("/glove/knobs",GET_WAITNONE);
+        if(gloveTopic.isValid()){
+            // set sigmoid
+        }
     }
 }

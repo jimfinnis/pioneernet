@@ -26,9 +26,11 @@ struct option opts[]={
     {"constfile", required_argument, NULL, 'c'},
     {"hormone", required_argument, NULL, 'h'},
     {"log",required_argument,NULL,'l'},
+    {"slow",required_argument,NULL,'s'},
     {NULL,0,NULL,0},
 };
 
+double slowFactor=1.0;
 
 double kM,kPower,kBase;
 Value *mapFunc; // function to map charge to hormone or hormone input
@@ -118,9 +120,12 @@ int main(int argc,char *argv[]){
     
     BackpropNet *net = NULL;
     int optidx=0,c;
-    while(c=getopt_long(argc,argv,"l:n:t:V:c:h:",opts,&optidx)){
+    while(c=getopt_long(argc,argv,"s:l:n:t:V:c:h:",opts,&optidx)){
         if(c<0)break;
         switch(c){
+        case 's':
+            slowFactor=atof(optarg);
+            break;
         case 'l':
             log=fopen(optarg,"w");
             break;
@@ -128,7 +133,9 @@ int main(int argc,char *argv[]){
             maxtime = atof(optarg);
             break;
         case 'n':
+            printf("Loading network..\n");
             net = BackpropNet::loadNet(optarg);
+            printf("Loaded..\n");
             break;
         case 'V':
             varString = strdup(optarg);
@@ -210,7 +217,8 @@ int main(int argc,char *argv[]){
         if(numPixels){
             if(!decimator){
                 // kernelsize,sigma,pixels in
-                decimator = new GaussianDecimator(41,4.0,numPixels);
+                // was 41,4
+                decimator = new GaussianDecimator(5,1.0,numPixels);
             }
             if(numPixels!=decimator->getBufSize()){
                 ROS_FATAL("Number of input pixels has changed");
@@ -224,6 +232,9 @@ int main(int argc,char *argv[]){
             for(int i=0;i<numLightIns;i++){
                 inp[inpidx++] = tmp[(i+numLightIns/2)%numLightIns];
             }
+            for(int i=0;i<numLightIns;i++)//snark
+                printf("%f ",inp[NUM_SONARS+i]);
+            printf("\n");
         } else {
             for(int i=0;i<numLightIns;i++)
                 inp[inpidx++]=0;
@@ -233,14 +244,17 @@ int main(int argc,char *argv[]){
         net->update();
         double *outs = net->getOutputs();
         std_msgs::Float64 m;
-        m.data = outs[0];
+        m.data = outs[0]/slowFactor;
         if(m.data<-1)m.data=-1;
         if(m.data>1)m.data=1;
         leftmotor.publish(m);
-        m.data = outs[1];
+        
+        m.data = outs[1]/slowFactor;
         if(m.data<-1)m.data=-1;
         if(m.data>1)m.data=1;
         rightmotor.publish(m);
+        
+        printf("motors: %f %f\n",outs[0],outs[1]);
         // update the power management
         
         double time = (ros::Time::now() - lastTick).toSec();
@@ -270,6 +284,11 @@ int main(int argc,char *argv[]){
                     kPower*totalLight,outs[0],outs[1]);
         }
     }
+    std_msgs::Float64 m;
+    m.data=0;
+    leftmotor.publish(m);
+    rightmotor.publish(m);
+    
     if(log)fclose(log);
     return 0;
 }
