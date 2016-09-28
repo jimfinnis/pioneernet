@@ -16,6 +16,7 @@
 #include "std_msgs/Float64.h"
 
 #include "power.h"
+#include "diamondapparatus/diamondapparatus.h"
 
 #define NUM_SONARS 8
 
@@ -30,7 +31,7 @@ struct option opts[]={
     {NULL,0,NULL,0},
 };
 
-double slowFactor=1.0;
+double slowFactor=20.0;
 
 double kM,kPower,kBase;
 Value *mapFunc; // function to map charge to hormone or hormone input
@@ -96,6 +97,9 @@ int main(int argc,char *argv[]){
     ros::NodeHandle n;
     ros::Subscriber s[NUM_SONARS];
     ros::Subscriber light;
+    
+    diamondapparatus::init();
+    diamondapparatus::subscribe("/tracker/points");
     
     float maxtime = 1000000;
     bool manual=false;
@@ -276,8 +280,17 @@ int main(int argc,char *argv[]){
             power.charge=1; // weird hormone, fix charge
         
         if(log){
+            diamondapparatus::Topic tpos = 
+                  diamondapparatus::get("/tracker/points",GET_WAITNONE);
+            if(!tpos.isValid()){
+                ROS_FATAL("No position data\n");
+                break;
+            }
+            double px = tpos[0].f();
+            double py = tpos[1].f();
+            
             double tnow = (lastTick-startTick).toSec();
-            fprintf(log,"%f,%f,%f,",tnow,0.0,0.0); // REPLACE
+            fprintf(log,"%f,%f,%f,",tnow,px,py); // REPLACE
             for(int i=0;i<16;i++) // assumption of 16 ins
                 fprintf(log,"%f,",inp[i]);
             fprintf(log,"%f,%f,%f,%f,%f\n",hormone,power.charge,
@@ -288,6 +301,7 @@ int main(int argc,char *argv[]){
     m.data=0;
     leftmotor.publish(m);
     rightmotor.publish(m);
+        ros::spinOnce();
     
     if(log)fclose(log);
     return 0;

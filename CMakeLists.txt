@@ -30,7 +30,7 @@ add_dependencies(pioneernet_node
     ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(pioneernet_node 
-  angort dl m
+  angort dl m diamondapparatus
   ${catkin_LIBRARIES}
 )
 

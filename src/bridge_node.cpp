@@ -31,6 +31,35 @@
 ros::Publisher sonarPubs[NUM_SONARS];
 ros::Publisher lightPub;
 
+double sigWidth=1;
+double sigCentre=0.5;
+double thresh=0;
+double sigAmount=0;
+
+inline double gloveconv(double f){
+    return f/1024.0;
+}
+inline double sigmoid(double x){
+    x=(x-sigCentre)/(sigWidth+0.001);
+    return 1.0/(1.0+exp(-x));
+}
+int processpixel(int p){
+    double x = p;
+    printf("In: %f ",x);
+    x = x/255.0;
+    printf("Scale: %f ",x);
+    double orig = x;
+    x=sigmoid(x);
+    printf("Sig: %f ",x);
+    
+    x=(sigAmount*x)+(1-sigAmount)*orig;
+    
+    if(x<thresh)x=0;
+    printf("Thr: %f ",x);
+    
+    return (int)(x*255.0);
+}
+
 /// the client object
 
 class BridgeClient : public TCPClient<MotorPacket,SensorPacket> {
@@ -58,6 +87,9 @@ public:
         }
         printf("Sonars OK\n");
         printf("response size %ld\n",sizeof(resp));
+        
+        printf("Sigamt: %f  Sig: c=%f/w=%f  Thr:%f\n",sigAmount,
+               sigCentre,sigWidth,thresh);
         // Now the light sensor.
         // We convert the currently monochrome data into colour
         // for publications
@@ -69,10 +101,11 @@ public:
             pix.g = resp.pixels[i*3+1];
             pix.b = resp.pixels[i*3+2];
             
+            pix.r = processpixel(pix.r);
+            pix.g = processpixel(pix.g);
+            pix.b = processpixel(pix.b);
             printf("%d: %d %d %d\n",i,pix.r,pix.g,pix.b);
-            if(pix.r<40)pix.r=0;
-            if(pix.g<40)pix.g=0;
-            if(pix.b<40)pix.b=0;
+            
             
             ls.pixels.push_back(pix);
         }
@@ -163,7 +196,10 @@ int main(int argc,char *argv[]){
         diamondapparatus::Topic gloveTopic =
               diamondapparatus::get("/glove/knobs",GET_WAITNONE);
         if(gloveTopic.isValid()){
-            // set sigmoid
+            sigCentre = gloveconv(gloveTopic[0].f());
+            sigWidth = gloveconv(gloveTopic[1].f());
+            thresh = gloveconv(gloveTopic[2].f());
+            sigAmount = gloveconv(gloveTopic[3].f());
         }
     }
 }
