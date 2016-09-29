@@ -24,6 +24,8 @@
 #include <string>
 #include <sstream>
 
+#define ENABLEDIAMOND 0
+
 // the port we connect to on the Pioneer
 #define PORT 34312
 
@@ -33,8 +35,11 @@ ros::Publisher lightPub;
 
 double sigWidth=1;
 double sigCentre=0.5;
-double thresh=0;
+double thresh=0.3;
 double sigAmount=0;
+
+
+
 
 inline double gloveconv(double f){
     return f/1024.0;
@@ -43,19 +48,47 @@ inline double sigmoid(double x){
     x=(x-sigCentre)/(sigWidth+0.001);
     return 1.0/(1.0+exp(-x));
 }
+
+// 5-kernel, sigma=1, half of it, backwards ;)
+float k[]={0.38774,0.24477,0.06136};
+
+void blur(uint8_t *out,uint8_t *p,int ch,int n){
+    uint8_t mx=0;
+    for(int i=0;i<n;i++){
+        double t = 0;
+        for(int j=-2;j<=2;j++){
+            int px = (i+j+n)%n;
+            t+= (double)(p[px*3+ch])*k[j<0?-j:j];
+        }
+        t /= 5.0;
+        uint8_t bv=(uint8_t)t;
+        out[i*3+ch]=bv;
+        if(bv>mx)mx=bv;
+    }
+    // and normalise
+    double normfac=255.0/(double)mx;
+    for(int i=0;i<n;i++){
+        double px = (double)(out[i*3+ch]);
+        px *= normfac;
+        out[i*3+ch]=(uint8_t)px;
+    }
+}
+
+
+
 int processpixel(int p){
     double x = p;
-    printf("In: %f ",x);
+//    printf("In: %f ",x);
     x = x/255.0;
-    printf("Scale: %f ",x);
+//    printf("Scale: %f ",x);
     double orig = x;
     x=sigmoid(x);
-    printf("Sig: %f ",x);
+//    printf("Sig: %f ",x);
     
     x=(sigAmount*x)+(1-sigAmount)*orig;
     
     if(x<thresh)x=0;
-    printf("Thr: %f ",x);
+//    printf("Thr: %f ",x);
     
     return (int)(x*255.0);
 }
@@ -91,20 +124,30 @@ public:
         printf("Sigamt: %f  Sig: c=%f/w=%f  Thr:%f\n",sigAmount,
                sigCentre,sigWidth,thresh);
         // Now the light sensor.
+        
+        // Blur the data with a gaussian (exp 280916)
+        uint8_t blurred[NUM_PIXELS*3];
+        blur(blurred,resp.pixels,0,NUM_PIXELS);
+        blur(blurred,resp.pixels,1,NUM_PIXELS);
+        blur(blurred,resp.pixels,2,NUM_PIXELS);
+        
+        
+        
         // We convert the currently monochrome data into colour
         // for publications
+        
         lightsensor_gazebo::LightSensor ls;
         for(int i=0;i<NUM_PIXELS;i++){
             // these are 0-255
             lightsensor_gazebo::Pixel pix;
-            pix.r = resp.pixels[i*3+0];
-            pix.g = resp.pixels[i*3+1];
-            pix.b = resp.pixels[i*3+2];
+            pix.r = blurred[i*3+0];
+            pix.g = blurred[i*3+1];
+            pix.b = blurred[i*3+2];
             
             pix.r = processpixel(pix.r);
             pix.g = processpixel(pix.g);
             pix.b = processpixel(pix.b);
-            printf("%d: %d %d %d\n",i,pix.r,pix.g,pix.b);
+//            printf("%d: %d %d %d\n",i,pix.r,pix.g,pix.b);
             
             
             ls.pixels.push_back(pix);
@@ -139,8 +182,9 @@ int main(int argc,char *argv[]){
     ros::init(argc,argv,"bridge_node");
     ros::NodeHandle node;
     
+#if(ENABLEDIAMOND)
     diamondapparatus::init();
-    
+#endif
     // publishers
     
     for(int i=0;i<NUM_SONARS;i++){
@@ -170,8 +214,9 @@ int main(int argc,char *argv[]){
     }
     
     // subscribe to diamond knob control stuff
+#if(ENABLEDIAMOND)
     diamondapparatus::subscribe("/glove/knobs");
-    
+#endif    
     try {
         // start the client and loop away!
         client = new BridgeClient(addr.c_str());
@@ -193,6 +238,7 @@ int main(int argc,char *argv[]){
         client->req.command=0; // clear any command
         rate.sleep();
         
+#if(ENABLEDIAMOND)
         diamondapparatus::Topic gloveTopic =
               diamondapparatus::get("/glove/knobs",GET_WAITNONE);
         if(gloveTopic.isValid()){
@@ -201,5 +247,6 @@ int main(int argc,char *argv[]){
             thresh = gloveconv(gloveTopic[2].f());
             sigAmount = gloveconv(gloveTopic[3].f());
         }
+#endif
     }
 }

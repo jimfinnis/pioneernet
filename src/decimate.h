@@ -76,7 +76,7 @@ public:
         // oh, let's normalise too.
         double t = 0;
         for(int i=0;i<destct;i++)
-            t+=dest[i];
+            if(dest[i]>t)t=dest[i];
         if(t>=0.00001){
             for(int i=0;i<destct;i++)
                 dest[i]/=t;
