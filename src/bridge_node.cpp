@@ -49,18 +49,21 @@ inline double sigmoid(double x){
     return 1.0/(1.0+exp(-x));
 }
 
-// 5-kernel, sigma=1, half of it, backwards ;)
-float k[]={0.38774,0.24477,0.06136};
+#define KSIZE 5
+#define HALFK ((KSIZE-1)/2)
+//float k[]={0.38774,0.24477,0.06136}; // 5-kern, sigma=1
+// 7-kernel, sigma=1.2, half of it, backwards ;)
+float k[] = {0.0169,0.087,0.2236,0.3242};
 
 void blur(uint8_t *out,uint8_t *p,int ch,int n){
     uint8_t mx=0;
     for(int i=0;i<n;i++){
         double t = 0;
-        for(int j=-2;j<=2;j++){
+        for(int j=-HALFK;j<=HALFK;j++){
             int px = (i+j+n)%n;
             t+= (double)(p[px*3+ch])*k[j<0?-j:j];
         }
-        t /= 5.0;
+        t /= (double)KSIZE;
         uint8_t bv=(uint8_t)t;
         out[i*3+ch]=bv;
         if(bv>mx)mx=bv;
@@ -93,11 +96,34 @@ int processpixel(int p){
     return (int)(x*255.0);
 }
 
+// cheap low-pass: exponentially weighted moving average,
+// "Brown's simple exponential smoothing". (see brown1963smoothing).
+class LPF {
+    double alpha;
+    double p;
+public:
+    LPF(double a){ // the filter parameter. High=more persistence, lower freq
+        alpha=a;
+        p=0;
+    }
+    void reset(){
+        p=0;
+    }
+    void setAlpha(double a){
+        alpha=a;
+    }
+    double run(double v){
+        p = alpha*p + (1.0-alpha)*v;
+        return p;
+    }
+};
 /// the client object
 
 class BridgeClient : public TCPClient<MotorPacket,SensorPacket> {
     int seq;
     sensor_msgs::Range r; // a range message
+    ros::Time lastTick;
+    LPF *lpfs[NUM_PIXELS*3]; // PROBABLY UNUSED (tried to use, see 290916exp12
 public:
     BridgeClient(const char *addr) : TCPClient<MotorPacket,SensorPacket>(addr,PORT){
         seq=0;
@@ -106,10 +132,16 @@ public:
         r.field_of_view = 0.2618f; // 15 degrees
         r.min_range = 0;
         r.max_range = 5;
+        lastTick = ros::Time::now();
+        for(int i=0;i<NUM_PIXELS*3;i++){
+            lpfs[i]=new LPF(0.0); // see above!
+        }
     }
     
     virtual void process(){
-        printf("Processing\n");
+        double time = (ros::Time::now() - lastTick).toSec();
+        lastTick = ros::Time::now();
+        printf("Processing, interval = %f\n",time);
         // turn the sensor packet into ROS topic publications
         r.header.seq = seq++;
         r.header.stamp = ros::Time::now();
@@ -131,6 +163,9 @@ public:
         blur(blurred,resp.pixels,1,NUM_PIXELS);
         blur(blurred,resp.pixels,2,NUM_PIXELS);
         
+        // temporally blur!
+        
+
         
         
         // We convert the currently monochrome data into colour
@@ -140,9 +175,10 @@ public:
         for(int i=0;i<NUM_PIXELS;i++){
             // these are 0-255
             lightsensor_gazebo::Pixel pix;
-            pix.r = blurred[i*3+0];
-            pix.g = blurred[i*3+1];
-            pix.b = blurred[i*3+2];
+            // see above, LPFs do nothing perhaps
+            pix.r = lpfs[i*3+0]->run(blurred[i*3+0]);
+            pix.g = lpfs[i*3+1]->run(blurred[i*3+1]);
+            pix.b = lpfs[i*3+2]->run(blurred[i*3+2]);
             
             pix.r = processpixel(pix.r);
             pix.g = processpixel(pix.g);

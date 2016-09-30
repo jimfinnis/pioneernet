@@ -20,6 +20,8 @@
 
 #define NUM_SONARS 8
 
+#define FARAWAY 5
+
 struct option opts[]={
     {"net", required_argument, NULL, 'n'},
     {"time", required_argument, NULL, 't'},
@@ -67,6 +69,7 @@ void getParams(const char *cf,char *varstr){
 double sonarDists[NUM_SONARS];
 void sonarCallback(const sensor_msgs::Range::ConstPtr& msg,int i){
     sonarDists[i] = msg->range;
+    if(sonarDists[i]>FARAWAY)sonarDists[i]=FARAWAY;
 }
 
 
@@ -116,7 +119,7 @@ int main(int argc,char *argv[]){
         sprintf(buf,"s%d",i);
         s[i] = n.subscribe<sensor_msgs::Range>(buf,1000,
                                  boost::bind(sonarCallback,_1,i));
-        sonarDists[i]=1000;
+        sonarDists[i]=FARAWAY;
     }
     
     light = n.subscribe<lightsensor_gazebo::LightSensor>
