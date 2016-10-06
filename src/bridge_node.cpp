@@ -38,8 +38,22 @@ double sigCentre=0.5;
 double thresh=0.3;
 double sigAmount=0;
 
-
-
+// used to log the pixel data
+/*
+FILE *logRings=NULL;
+void logRing(const char *title,uint8_t *p,int n){
+    if(!logRings)
+        logRings=fopen("ringlog","w");
+    fprintf(logRings,"%s: ",title);
+    for(int i=0;i<n;i++){
+        uint16_t v = p[i*3+0];
+        v+=p[i*3+1];
+        v+=p[i*3+2];
+        fprintf(logRings,"%d,",v/3);
+    }
+    fprintf(logRings,"\n");
+}
+*/
 
 inline double gloveconv(double f){
     return f/1024.0;
@@ -54,6 +68,7 @@ inline double sigmoid(double x){
 //float k[]={0.38774,0.24477,0.06136}; // 5-kern, sigma=1
 // 7-kernel, sigma=1.2, half of it, backwards ;)
 float k[] = {0.0169,0.087,0.2236,0.3242};
+
 
 void blur(uint8_t *out,uint8_t *p,int ch,int n){
     uint8_t mx=0;
@@ -155,23 +170,21 @@ public:
         
         printf("Sigamt: %f  Sig: c=%f/w=%f  Thr:%f\n",sigAmount,
                sigCentre,sigWidth,thresh);
+        
         // Now the light sensor.
         
         // Blur the data with a gaussian (exp 280916)
+//        logRing("preblur",resp.pixels,NUM_PIXELS);
         uint8_t blurred[NUM_PIXELS*3];
         blur(blurred,resp.pixels,0,NUM_PIXELS);
         blur(blurred,resp.pixels,1,NUM_PIXELS);
         blur(blurred,resp.pixels,2,NUM_PIXELS);
+//        logRing("postblur",blurred,NUM_PIXELS);
         
-        // temporally blur!
-        
-
-        
-        
-        // We convert the currently monochrome data into colour
-        // for publications
+        // Now publish the data as RGB pixels
         
         lightsensor_gazebo::LightSensor ls;
+//        fprintf(logRings,"thresh: ");
         for(int i=0;i<NUM_PIXELS;i++){
             // these are 0-255
             lightsensor_gazebo::Pixel pix;
@@ -185,9 +198,11 @@ public:
             pix.b = processpixel(pix.b);
 //            printf("%d: %d %d %d\n",i,pix.r,pix.g,pix.b);
             
+//            fprintf(logRings,"%d,",(pix.r+pix.g+pix.b)/3);
             
             ls.pixels.push_back(pix);
         }
+//        fprintf(logRings,"\n");
         printf("Light sensors OK\n");
         lightPub.publish(ls);
     }
@@ -208,9 +223,15 @@ void motorCallback(const std_msgs::Float64::ConstPtr& msg, int i){
     client->req.motors[i]=msg->data*1000.0;
 }
 
-bool photoCallback(std_srvs::Empty::Request& req,
+bool photoCallbackPre(std_srvs::Empty::Request& req,
                       std_srvs::Empty::Response& resp){
-    client->req.command = COMMAND_PHOTO;
+    client->req.command = COMMAND_PHOTO_PREBLUR;
+    return true;
+}
+
+bool photoCallbackPost(std_srvs::Empty::Request& req,
+                      std_srvs::Empty::Response& resp){
+    client->req.command = COMMAND_PHOTO_POSTBLUR;
     return true;
 }
 
@@ -239,7 +260,8 @@ int main(int argc,char *argv[]){
                                    boost::bind(motorCallback,_1,1));
     
     // services
-    ros::ServiceServer serv = node.advertiseService("photo",photoCallback);
+    ros::ServiceServer servPre = node.advertiseService("photopre",photoCallbackPre);
+    ros::ServiceServer servPost = node.advertiseService("photopost",photoCallbackPost);
     
     // get parameters
     

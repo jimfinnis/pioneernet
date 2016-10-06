@@ -239,9 +239,10 @@ int main(int argc,char *argv[]){
             for(int i=0;i<numLightIns;i++){
                 inp[inpidx++] = tmp[(i+numLightIns/2)%numLightIns];
             }
-            for(int i=0;i<numLightIns;i++)//snark
-                printf("%f ",inp[NUM_SONARS+i]);
-            printf("\n");
+//            printf("\nLIGHTS   ");//snark
+//            for(int i=0;i<numLightIns;i++)
+//                printf("%f ",inp[NUM_SONARS+i]);
+//            printf("\n");
         } else {
             for(int i=0;i<numLightIns;i++)
                 inp[inpidx++]=0;

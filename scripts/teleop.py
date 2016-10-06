@@ -19,7 +19,7 @@ def main():
     font = pygame.font.Font(None,18)
 
     publeft = rospy.Publisher('leftmotor',Float64,queue_size=10)
-    pubright = rospy.Publisher('leftmotor',Float64,queue_size=10)
+    pubright = rospy.Publisher('rightmotor',Float64,queue_size=10)
     rospy.init_node('teleop',anonymous=True)
     rate = rospy.Rate(10)
 
