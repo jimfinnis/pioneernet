@@ -65,11 +65,14 @@ void getParams(const char *cf,char *varstr){
     
 }
 
+int recvdflags=0;
+
 
 double sonarDists[NUM_SONARS];
 void sonarCallback(const sensor_msgs::Range::ConstPtr& msg,int i){
     sonarDists[i] = msg->range;
     if(sonarDists[i]>FARAWAY)sonarDists[i]=FARAWAY;
+    recvdflags|=1; // we have got sonar
 }
 
 
@@ -92,6 +95,7 @@ void lightCallback(const lightsensor_gazebo::LightSensor::ConstPtr& msg){
         monoPix[i]=p;
         totalLight += p;
     }
+    recvdflags|=2; // we have got light
 }
 
 
@@ -201,13 +205,16 @@ int main(int argc,char *argv[]){
         fprintf(log,"hormone,charge,powerin,l,r\n");
     }
             
-        
+    
     ros::Time startTick = ros::Time::now();
     while(ros::ok()){
         GaussianDecimator *decimator=NULL;
         
         ros::spinOnce();
         rate.sleep();
+        
+        // skip if we haven't got data on sensors yet
+        if(recvdflags != 3)continue;
         
         // update the network, get the outputs and feed them
         // to the robot
@@ -262,13 +269,15 @@ int main(int argc,char *argv[]){
         if(m.data>1)m.data=1;
         rightmotor.publish(m);
         
-        printf("motors: %f %f\n",outs[0],outs[1]);
         // update the power management
         
         double time = (ros::Time::now() - lastTick).toSec();
         lastTick = ros::Time::now();
         
         power.update(time,totalLight*kPower,outs[0],outs[1]);
+        
+        printf("motors: %f %f; charge: %f; hormone: %f\n",outs[0],outs[1],
+               power.charge,hormone);
         
         // update the hormone
         if(!manual){
@@ -294,7 +303,7 @@ int main(int argc,char *argv[]){
             double py = tpos[1].f();
             
             double tnow = (lastTick-startTick).toSec();
-            fprintf(log,"%f,%f,%f,",tnow,px,py); // REPLACE
+            fprintf(log,"%f,%f,%f,",tnow,px,py);
             for(int i=0;i<16;i++) // assumption of 16 ins
                 fprintf(log,"%f,",inp[i]);
             fprintf(log,"%f,%f,%f,%f,%f\n",hormone,power.charge,
