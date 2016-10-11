@@ -276,7 +276,10 @@ int main(int argc,char *argv[]){
         
         power.update(time,totalLight*kPower,outs[0],outs[1]);
         
-        printf("motors: %f %f; charge: %f; hormone: %f\n",outs[0],outs[1],
+        double tnow = (lastTick-startTick).toSec();
+        printf("time %f; step %f; motors: %f %f; charge: %f; hormone: %f\n",
+               tnow,time,
+               outs[0],outs[1],
                power.charge,hormone);
         
         // update the hormone
@@ -302,19 +305,22 @@ int main(int argc,char *argv[]){
             double px = tpos[0].f();
             double py = tpos[1].f();
             
-            double tnow = (lastTick-startTick).toSec();
             fprintf(log,"%f,%f,%f,",tnow,px,py);
             for(int i=0;i<16;i++) // assumption of 16 ins
                 fprintf(log,"%f,",inp[i]);
             fprintf(log,"%f,%f,%f,%f,%f\n",hormone,power.charge,
                     kPower*totalLight,outs[0],outs[1]);
         }
+        
+        // exit on zero power
+        if(power.charge<0.000001)
+            break;
     }
     std_msgs::Float64 m;
     m.data=0;
     leftmotor.publish(m);
     rightmotor.publish(m);
-        ros::spinOnce();
+    ros::spinOnce();
     
     if(log)fclose(log);
     return 0;
