@@ -24,6 +24,8 @@
 #include <string>
 #include <sstream>
 
+
+
 #define ENABLEDIAMOND 0
 
 // the port we connect to on the Pioneer
