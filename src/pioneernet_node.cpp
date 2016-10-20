@@ -70,6 +70,7 @@ double kM,kPower,kBase;
 Value *mapFunc; // function to map charge to hormone or hormone input
 Value *resetFunc; // function to reset values between runs
 Parameters *params;
+bool simMode=false;
 
 void getParams(const char *cf,char *varstr){
     params = new Parameters(cf,varstr);
@@ -126,6 +127,10 @@ void lightCallback(const lightsensor_gazebo::LightSensor::ConstPtr& msg){
         monoPix[i]=p;
         totalLight += p;
     }
+    
+                  
+              
+    
     recvdflags|=2; // we have got light
 }
 
@@ -138,13 +143,13 @@ int main(int argc,char *argv[]){
     
     diamondapparatus::init();
     diamondapparatus::subscribe("/tracker/points");
+    diamondapparatus::subscribe("/bright");
     
     float maxtime = 1000000;
     bool manual=false;
     double inithormone=0;
     char *varString = NULL;
     FILE *log=NULL;
-    bool simMode=false;
     bool zeroOutputs=false;
     
     char constFile[1024];
@@ -358,7 +363,21 @@ int main(int argc,char *argv[]){
         double time = (ros::Time::now() - lastTick).toSec();
         lastTick = ros::Time::now();
         
-        power.update(time,totalLight*kPower,outs[0],outs[1]);
+        
+        if(simMode){
+            diamondapparatus::Topic t;
+            t = diamondapparatus::get("/bright",GET_WAITANY);
+            printf("Light fetch %d\n",t.state);
+            if(t.isValid()){
+                totalLight = t[0].f();
+                printf("LIGHT%f\n",totalLight);
+            }
+        }
+        
+        double powerin = totalLight*kPower;
+        
+        
+        power.update(time,powerin,outs[0],outs[1]);
         
         printf("time %f; step %f; motors: %f %f; charge: %f; hormone: %f\n",
                tnow,time,
@@ -392,8 +411,15 @@ int main(int argc,char *argv[]){
             for(int i=0;i<16;i++) // assumption of 16 ins
                 fprintf(log,"%f,",inp[i]);
             fprintf(log,"%f,%f,%f,%f,%f\n",hormone,power.charge,
-                    kPower*totalLight,outs[0],outs[1]);
+                    powerin,outs[0],outs[1]);
         }
+        
+        diamondapparatus::Topic v;
+        v.add(diamondapparatus::Datum(power.charge));
+        v.add(diamondapparatus::Datum(hormone));
+        v.add(diamondapparatus::Datum(totalLight));
+        v.add(diamondapparatus::Datum(powerin));
+        diamondapparatus::publish("/charge",v);
         
         // exit on zero power
         if(power.charge<0.000001)
