@@ -26,7 +26,8 @@
 
 
 
-#define ENABLEDIAMOND 0
+#define ENABLEDIAMOND 1
+#define ENABLEGLOVE 0
 
 // the port we connect to on the Pioneer
 #define PORT 34312
@@ -173,6 +174,12 @@ public:
         printf("Sigamt: %f  Sig: c=%f/w=%f  Thr:%f\n",sigAmount,
                sigCentre,sigWidth,thresh);
         
+#if(ENABLEDIAMOND)
+        diamondapparatus::Topic topic;
+        topic.add(diamondapparatus::Datum(resp.battery));
+        diamondapparatus::publish("/battery",topic);
+#endif
+        
         // Now the light sensor.
         
         // Blur the data with a gaussian (exp 280916)
@@ -275,7 +282,9 @@ int main(int argc,char *argv[]){
     
     // subscribe to diamond knob control stuff
 #if(ENABLEDIAMOND)
+#if(ENABLEGLOVE)
     diamondapparatus::subscribe("/glove/knobs");
+#endif
 #endif    
     try {
         // start the client and loop away!
@@ -299,6 +308,7 @@ int main(int argc,char *argv[]){
         rate.sleep();
         
 #if(ENABLEDIAMOND)
+#if(ENABLEGLOVE)
         diamondapparatus::Topic gloveTopic =
               diamondapparatus::get("/glove/knobs",GET_WAITNONE);
         if(gloveTopic.isValid()){
@@ -307,6 +317,7 @@ int main(int argc,char *argv[]){
             thresh = gloveconv(gloveTopic[2].f());
             sigAmount = gloveconv(gloveTopic[3].f());
         }
+#endif
 #endif
     }
 }

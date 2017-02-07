@@ -55,12 +55,14 @@ struct option opts[]={
     {"net", required_argument, NULL, 'n'},
     {"time", required_argument, NULL, 't'},
     {"vars", required_argument, NULL, 'V'},
-    {"constfile", required_argument, NULL, 'c'},
+    {"postvars", required_argument, NULL, 'W'},
+    {"constdebugfile", required_argument, NULL, 'c'},
     {"hormone", required_argument, NULL, 'h'},
     {"log",required_argument,NULL,'l'},
     {"slow",required_argument,NULL,'s'},
     {"sim",no_argument,NULL,'S'},
     {"zero",no_argument,NULL,'0'},
+    {"difftest",required_argument,NULL,'D'},
     {NULL,0,NULL,0},
 };
 
@@ -72,8 +74,8 @@ Value *resetFunc; // function to reset values between runs
 Parameters *params;
 bool simMode=false;
 
-void getParams(const char *cf,char *varstr){
-    params = new Parameters(cf,varstr);
+void getParams(const char *cf,char *prevarstr,char *postvarstr){
+    params = new Parameters(cf,prevarstr,postvarstr);
     const char *err = params->check();
     if(err){
         fprintf(stderr,"Parameter fetch failed:%s\n",err);
@@ -93,8 +95,15 @@ void getParams(const char *cf,char *varstr){
         resetFunc = params->getFunc("resetfunc");
     else
         resetFunc = NULL;
+}
+
+void writeParams(FILE *a){
+    fprintf(a,"kbase=%f\n",kBase);
+    fprintf(a,"kM=%f\n",kM);
+    fprintf(a,"kPower=%f\n",kPower);
     
-    
+    fprintf(a,"mapfunc:%c\n",mapFunc?'Y':'N');
+    fprintf(a,"resetfunc:%c\n",resetFunc?'Y':'N');
 }
 
 int recvdflags=0;
@@ -148,13 +157,15 @@ int main(int argc,char *argv[]){
     float maxtime = 1000000;
     bool manual=false;
     double inithormone=0;
-    char *varString = NULL;
+    char *preVarString = NULL;
+    char *postVarString = NULL;
     FILE *log=NULL;
+    FILE *constdebugf=NULL;
     bool zeroOutputs=false;
     
-    char constFile[1024];
-    const char *cfe = getenv("WHEELYCONSTFILE");
-    strcpy(constFile,cfe?cfe:"constants.ang");
+    char constdebugfile[1024];
+    const char *cfe = getenv("WHEELYconstdebugfILE");
+    strcpy(constdebugfile,cfe?cfe:"constants.ang");
     
     for(int i=0;i<NUM_SONARS;i++){
         char buf[32];
@@ -170,19 +181,32 @@ int main(int argc,char *argv[]){
     BackpropNet *net = NULL;
     int optidx=0,c;
     double setSlow=-1;
-    while(c=getopt_long(argc,argv,"0Ss:l:n:t:V:c:h:",opts,&optidx)){
+    // >0 means do a diff test: do not use the network, instead just
+    // drive 1,1 for 10 seconds, then ramp over 10 seconds to
+    // 1,v where v is the specified value.
+    double diffTestSpeed=-1; 
+    while(c=getopt_long(argc,argv,"0Ss:l:n:t:V:W:c:h:D:",opts,&optidx)){
         if(c<0)break;
         switch(c){
-            // sim mode triggers weird sonar noise
+            // sim mode triggers weird sonar noise and uses the totalLight
+            // from Diamond Apparatus /bright
         case 'S':
             printf("SIM MODE\n");
             simMode = true;
+            break;
+        case 'D':
+            diffTestSpeed = atof(optarg); // see above
             break;
         case 's':
             setSlow=atof(optarg);
             break;
         case 'l':
             log=fopen(optarg,"w");
+            {
+                char buf[1024];
+                sprintf(buf,"%s.consts",optarg);
+                constdebugf=fopen(buf,"w");
+            }
             break;
         case 't':
             maxtime = atof(optarg);
@@ -197,10 +221,13 @@ int main(int argc,char *argv[]){
             zeroOutputs=true;
             break;
         case 'V':
-            varString = strdup(optarg);
+            preVarString = strdup(optarg);
+            break;
+        case 'W':
+            postVarString = strdup(optarg);
             break;
         case 'c':
-            strcpy(constFile,optarg);
+            strcpy(constdebugfile,optarg);
             break;
         case 'h':
             manual=true;
@@ -211,7 +238,7 @@ int main(int argc,char *argv[]){
         default:abort();
         }
     }
-    getParams(constFile,varString);
+    getParams(constdebugfile,preVarString,postVarString);
     // handle default slow factors outside the loop so -s / -S order doesn't matter
     if(setSlow<0){
         if(simMode)
@@ -258,6 +285,11 @@ int main(int argc,char *argv[]){
         for(int i=0;i<8;i++)
             fprintf(log,"l%d,",i);
         fprintf(log,"hormone,charge,powerin,l,r\n");
+    }
+    
+    if(constdebugf){
+        writeParams(constdebugf);
+        fclose(constdebugf);
     }
     
     // spin for a bit to allow sim and ros time to sync
@@ -333,16 +365,35 @@ int main(int argc,char *argv[]){
             }
         }
         
+        double left,right;
+        double time = (ros::Time::now() - lastTick).toSec();
+        
+        // feed the inputs to the network, update it and
+        // get the outputs. Clamp them.
         net->setInputs(inp);
         net->update();
         double *outs = net->getOutputs();
         
-        double left = outs[0];
+        if(diffTestSpeed>=0){
+            // If we're doing a "diff test", override those values
+            // with the test outputs
+            outs[1] = 1;
+            if(tnow<10)
+                outs[0]=1;
+            else if(tnow>20)
+                outs[0]=diffTestSpeed;
+            else {
+                double t = (tnow-10.0)/10.0;
+                outs[0] = t*diffTestSpeed + (1.0f-t)*1.0f;
+            }
+        }
+        left = outs[0];
         if(left<-1)left=-1;
         if(left>1)left=1;
-        double right = outs[1];
+        right = outs[1];
         if(right<-1)right=-1;
         if(right>1)right=1;
+        
         
         // if both motors similar, make them the same in the sim.
         // This emulates the robot behaviour.
@@ -360,7 +411,6 @@ int main(int argc,char *argv[]){
         
         // update the power management
         
-        double time = (ros::Time::now() - lastTick).toSec();
         lastTick = ros::Time::now();
         
         
@@ -422,7 +472,7 @@ int main(int argc,char *argv[]){
         diamondapparatus::publish("/charge",v);
         
         // exit on zero power
-        if(power.charge<0.000001)
+        if(power.charge<0.000001 || tnow>maxtime)
             break;
     }
     std_msgs::Float64 m;

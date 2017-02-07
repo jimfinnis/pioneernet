@@ -33,6 +33,8 @@ add_executable(pioneernet_node
     $ENV{HOME}/phd/code/mnist/backprop.cpp
     $ENV{HOME}/phd/code/mnist/plainbp.cpp
     $ENV{HOME}/phd/code/mnist/backpropNoBiasHormone.cpp
+    $ENV{HOME}/phd/code/mnist/backpropNoBiasHormoneHard.cpp
+    $ENV{HOME}/phd/code/mnist/backpropNoBiasHormoneSigCentred.cpp
     $ENV{HOME}/phd/code/mnist/loadsave.cpp
 )
 
