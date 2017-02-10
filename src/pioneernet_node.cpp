@@ -429,11 +429,6 @@ int main(int argc,char *argv[]){
         
         power.update(time,powerin,outs[0],outs[1]);
         
-        printf("time %f; step %f; motors: %f %f; charge: %f; hormone: %f\n",
-               tnow,time,
-               outs[0],outs[1],
-               power.charge,hormone);
-        
         // update the hormone
         if(!manual){
             if(mapFunc){
@@ -447,22 +442,28 @@ int main(int argc,char *argv[]){
         else
             power.charge=1; // weird hormone, fix charge
         
-        if(log){
-            diamondapparatus::Topic tpos = 
-                  diamondapparatus::get("/tracker/points",GET_WAITNONE);
-            if(!tpos.isValid()){
-                ROS_FATAL("No position data\n");
-                break;
-            }
-            double px = tpos[0].f();
-            double py = tpos[1].f();
+        diamondapparatus::Topic tpos = 
+              diamondapparatus::get("/tracker/points",GET_WAITNONE);
+        if(!tpos.isValid()){
+            ROS_FATAL("No position data\n");
+            break;
+        }
+        double px = tpos[0].f();
+        double py = tpos[1].f();
             
+        if(log){
             fprintf(log,"%f,%f,%f,",tnow,px,py);
             for(int i=0;i<16;i++) // assumption of 16 ins
                 fprintf(log,"%f,",inp[i]);
             fprintf(log,"%f,%f,%f,%f,%f\n",hormone,power.charge,
                     powerin,outs[0],outs[1]);
         }
+        
+        printf("time %f; step %f; motors: %f %f; charge: %f; hormone: %f; pos (%f,%f)\n",
+               tnow,time,
+               outs[0],outs[1],
+               power.charge,hormone,px,py);
+        
         
         diamondapparatus::Topic v;
         v.add(diamondapparatus::Datum(power.charge));
