@@ -69,8 +69,12 @@ inline double sigmoid(double x){
 #define KSIZE 5
 #define HALFK ((KSIZE-1)/2)
 //float k[]={0.38774,0.24477,0.06136}; // 5-kern, sigma=1
+
+
 // 7-kernel, sigma=1.2, half of it, backwards ;)
-float k[] = {0.0169,0.087,0.2236,0.3242};
+//float k[] = {0.0169,0.087,0.2236,0.3242};
+// 7-kernel, sigma=1.2, half of it
+float k[] = {0.3242,0.2236,0.087,0.0169};
 
 
 void blur(uint8_t *out,uint8_t *p,int ch,int n){

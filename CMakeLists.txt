@@ -13,6 +13,9 @@ set(SDL_LD ${SDL_LDFLAGS} ${SDL2_TTF_LDFLAGS} ${SDL2_GFX_LDFLAGS})
 add_definitions("-std=c++11")
 find_package(catkin REQUIRED COMPONENTS roscpp rospy sensor_msgs
     std_msgs)
+    
+message(STATUS "Catkin exp:")
+message(STATUS ${catkin_EXPORTED_TARGETS})
 
 catkin_package(
 #  INCLUDE_DIRS include
@@ -34,7 +37,7 @@ add_executable(pioneernet_node
     $ENV{HOME}/phd/code/mnist/plainbp.cpp
     $ENV{HOME}/phd/code/mnist/backpropNoBiasHormone.cpp
     $ENV{HOME}/phd/code/mnist/backpropNoBiasHormoneHard.cpp
-    $ENV{HOME}/phd/code/mnist/backpropNoBiasHormoneSigCentred.cpp
+    $ENV{HOME}/phd/code/mnist/backpropNoBiasHormoneTanh.cpp
     $ENV{HOME}/phd/code/mnist/loadsave.cpp
 )
 

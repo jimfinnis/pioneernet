@@ -430,17 +430,17 @@ int main(int argc,char *argv[]){
         power.update(time,powerin,outs[0],outs[1]);
         
         // update the hormone
-        if(!manual){
-            if(mapFunc){
-                params->pushFuncArg((float)power.charge);
-                params->runFunc(mapFunc);
-                hormone = params->popFuncResult();
-            }
-            else
-                hormone = 1.0-power.charge;
+        if(manual){
+            hormone=inithormone;
+            printf("MANUAL SETTING %f\n",hormone);
+        } else if(mapFunc){
+            params->pushFuncArg((float)power.charge);
+            params->runFunc(mapFunc);
+            hormone = params->popFuncResult();
+        } else {
+            hormone = 1.0-power.charge;
         }
-        else
-            power.charge=1; // weird hormone, fix charge
+        
         
         diamondapparatus::Topic tpos = 
               diamondapparatus::get("/tracker/points",GET_WAITNONE);
